@@ -24,6 +24,7 @@ body {
     border-radius: 14px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     display: none;
+    height: 95vh;
 }
 
 /* Inner panel */
@@ -166,7 +167,7 @@ body {
 
 .key.wide { min-width: 70px; }
 .key.wider { min-width: 90px; }
-.key.enter { min-width: 100px; }
+.key.enter { min-width: 90px; }
 .key.space { min-width: 205px; }
 
 .key.selected {
