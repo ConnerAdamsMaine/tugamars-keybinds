@@ -23,7 +23,7 @@ body {
     padding: 32px;
     border-radius: 14px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-    display: none;
+    /*display: none;*/
     height: 95vh;
 }
 
@@ -204,4 +204,21 @@ body {
 .panel-keyboard > h2 {
     margin-bottom:0;
     cursor: pointer;
+}
+
+.search-form {
+    height: 30px;
+    width: 20vw;
+    float: right;
+    background: #0f0f10;
+    border: none;
+    color: #FFF;
+    padding: 5px;
+    padding-left: 10px;
+    font-weight: bold;
+}
+
+.search-form:focus, .search-form:focus-visible {
+    border: none;
+    outline: none;
 }

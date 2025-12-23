@@ -26,7 +26,7 @@ function renderKeybind(d){
     if(d.hasOwnProperty("type") && d.type === "action") action='<div class="action"><span class="action-text">Action</span></div>';
 
     return `
-            <div class="item" ${keybindaction}>
+            <div class="item" ${keybindaction} data-name="${d.name}" data-resource="${d.resource}">
                 <div class="header">
                     <div class="title">/${d.name}</div>
                     ${keybind}
@@ -140,5 +140,21 @@ document.querySelectorAll(".key").forEach(key => {
         if (selectedKey) {
             console.log(selectedKey);
         }
+    });
+});
+
+const input  = document.getElementById('search-form');
+
+input.addEventListener('input', (event) => {
+    const query = input.value.trim().toLowerCase();
+    const items = document.querySelectorAll('.item');
+    items.forEach(item => {
+        const resource = item.dataset.resource.toLowerCase();
+        const name = item.dataset.name.toLowerCase();
+
+        const matches =
+            resource.includes(query) || name.includes(query);
+
+        item.style.display = query === '' || matches ? '' : 'none';
     });
 });
