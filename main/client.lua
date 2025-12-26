@@ -235,95 +235,103 @@ local function GetKeyMappingKey(commandHash)
     end
 end
 
+---Gets key mappings with consistency validation
+---Uses multiple iterations to detect unstable bindings
+---@param list table List of command names
+---@return table Mapping of command -> keybind
 local function getKeyMappings(list)
+     local results = {}      -- word -> key
+     local invalid = {}      -- word -> true if mismatch detected
+     local iterations = 5    -- Reduced from 20 for better performance
 
-    -- Fisher–Yates shuffle
-    local function shuffle(tbl)
-        for i = #tbl, 2, -1 do
-            local j = math.random(i)
-            tbl[i], tbl[j] = tbl[j], tbl[i]
-        end
-    end
+     for iteration = 1, iterations do
+         for _, v in ipairs(list) do
+             if not invalid[v] then
+                 local key = GetKeyMappingKey(GetHashKey(v))
 
-    local results = {}      -- word -> key
-    local invalid = {}      -- word -> true if mismatch detected
+                 if results[v] == nil then
+                     -- first time we see this command
+                     results[v] = key
+                 elseif results[v] ~= key then
+                     -- mismatch detected - mark as invalid
+                     results[v] = nil
+                     invalid[v] = true
+                 end
+             end
+         end
+     end
 
-    for iteration = 1, 20 do
-        shuffle(list)
+     -- build final output, excluding mismatches
+     local final = {}
+     for word, key in pairs(results) do
+         if key ~= nil and not invalid[word] then
+             final[word] = key
+         end
+     end
 
-        for _, v in ipairs(list) do
-            if not invalid[v] then
-                local key = GetKeyMappingKey(GetHashKey(v))
-
-                if results[v] == nil then
-                    -- first time we see this word
-                    results[v] = key
-                elseif results[v] ~= key then
-                    -- mismatch across iterations
-                    results[v] = nil
-                    invalid[v] = true
-                end
-            end
-        end
-    end
-
-    -- build final output
-    local final = {}
-    for word, key in pairs(results) do
-        if key ~= nil and not invalid[word] then
-            final[word] = key
-        end
-    end
-
-    return final
-end
+     return final
+ end
 
 
+---Retrieves all registered commands with keybinds and applies filters
+---@return table Filtered and enriched commands with keybind data
 local function getKeybindsAndCommands()
+     local commands = GetRegisteredCommands()
+     if not commands or #commands == 0 then
+         TriggerEvent('chat:addMessage', {
+             color = {255, 0, 0},
+             multiline = true,
+             args = {"Keybinds", "No commands found"}
+         })
+         return {}
+     end
 
-    local commands=GetRegisteredCommands();
-    local finalCommands={};
+     local finalCommands = {}
+     local commandsForFunc = {}
+     local blockedResources = Config.BlockedResources
+     local removeMinusAndPlusCommands = Config.removeMinusAndPlusCommands
 
-    local blacklistedResources=Config.BlockedResources;
+     -- Filter and classify commands
+     for _, command in ipairs(commands) do
+         local isBlocked = blockedResources[command.resource]
+         local hasModifier = string.find(command.name, "[+%-]")
+         
+         if not isBlocked and (not removeMinusAndPlusCommands or not hasModifier) then
+             if hasModifier then
+                 command.type = "action"
+             end
+             table.insert(finalCommands, command)
+             table.insert(commandsForFunc, command.name)
+         end
+     end
 
-    local commandsForFunc={};
+     -- Get keybindings for all commands
+     local keymappings = getKeyMappings(commandsForFunc)
 
-    local removeMinusAndPlusCommands=Config.removeMinusAndPlusCommands;
+     -- Attach keybinds to commands
+     for _, command in ipairs(finalCommands) do
+         command.keybind = keymappings[command.name] or nil
+     end
 
-    for k,v in ipairs(commands) do
-        if(not blacklistedResources[v.resource] and (not removeMinusAndPlusCommands or (not string.find(v.name, "+") and not string.find(v.name, "-") ) ) ) then
+     return finalCommands
+ end
 
-            if( string.find(v.name, "+") or string.find(v.name, "-") ) then
-                v.type="action";
-            end
-
-            table.insert(finalCommands, v);
-            table.insert(commandsForFunc,v.name);
-        end
-    end
-
-    local keymappings=getKeyMappings(commandsForFunc);
-
-    for k,v in ipairs(finalCommands) do
-        v.keybind = keymappings[v.name] or nil;
-    end
-
-    return finalCommands;
-end
-
+---Opens the keybinds UI
 RegisterCommand("keybinds", function()
+     local commands = getKeybindsAndCommands()
+     if #commands == 0 then
+         return
+     end
 
-    local d=getKeybindsAndCommands();
-    SendNUIMessage({
-        action = "tgm:keybinds:show",
-        kc=d,
-        debug = true
-    })
-    SetNuiFocus(true,true);
+     SendNUIMessage({
+         action = "tgm:keybinds:show",
+         kc = commands
+     })
+     SetNuiFocus(true, true)
+ end)
 
-end)
-
-RegisterNuiCallback("closeUi", function(data,cb)
-    SetNuiFocus(false,false);
-    cb(true)
-end)
+ ---Closes the keybinds UI
+ RegisterNuiCallback("closeUi", function(data, cb)
+     SetNuiFocus(false, false)
+     cb(true)
+ end)

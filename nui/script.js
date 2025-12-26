@@ -1,160 +1,184 @@
 
-function nuiCallback(url, body){
+/**
+ * Sends a callback message to the FiveM resource
+ * @param {string} url - The callback name
+ * @param {object} body - The data to send
+ * @returns {Promise} Response from the resource
+ */
+function nuiCallback(url, body) {
+     if (typeof mode !== "undefined" && mode === "dev") return false;
 
-    if(typeof mode !== "undefined" && mode === "dev") return false;
+     return fetch(`https://${GetParentResourceName()}/${url}`, {
+         method: 'POST',
+         headers: {
+             'Content-Type': 'application/json; charset=UTF-8',
+         },
+         body: JSON.stringify(body)
+     }).then(resp => resp.json()).catch(err => {
+         console.error(`NUI callback error for ${url}:`, err);
+     });
+ }
 
-    return fetch(`https://${GetParentResourceName()}/${url}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: JSON.stringify(body)
-    }).then(resp => resp.json());
-}
+/**
+ * Renders a command/keybind item as HTML
+ * @param {object} data - Command data with name, resource, keybind, and type
+ * @returns {string} HTML markup for the item
+ */
+function renderKeybind(data) {
+     let keybind = "";
+     let action = "";
+     let keybindAttr = "";
 
-function renderKeybind(d){
+     if (data.hasOwnProperty("keybind") && data.keybind) {
+         keybindAttr = `data-key="${data.keybind}"`;
+         keybind = `<div class="keybind">${data.keybind}</div>`;
+     }
 
-    let keybind="";
-    let action="";
+     if (data.hasOwnProperty("type") && data.type === "action") {
+         action = '<div class="action"><span class="action-text">Action</span></div>';
+     }
 
-    let keybindaction="";
+     return `
+         <div class="item" ${keybindAttr} data-name="${data.name}" data-resource="${data.resource}">
+             <div class="header">
+                 <div class="title">/${data.name}</div>
+                 ${keybind}
+             </div>
+             <div class="bottom">
+                 <div class="resource">${data.resource}</div>
+                 ${action}
+             </div>
+         </div>
+     `;
+ }
 
-    if(d.hasOwnProperty("keybind") && d.keybind !== "") {
-        keybindaction = 'data-key="'+d.keybind+'"';
-        keybind = '<div class="keybind">' + d.keybind + '</div>';
-    }
-    if(d.hasOwnProperty("type") && d.type === "action") action='<div class="action"><span class="action-text">Action</span></div>';
-
-    return `
-            <div class="item" ${keybindaction} data-name="${d.name}" data-resource="${d.resource}">
-                <div class="header">
-                    <div class="title">/${d.name}</div>
-                    ${keybind}
-                </div>
-                <div class="bottom">
-                    <div class="resource">${d.resource}</div>
-                    ${action}
-                </div>
-            </div>
-    `;
-
-}
-
+/**
+ * Sorts commands by resource name
+ * @param {array} data - Array of command objects
+ * @returns {array} Sorted array
+ */
 function sortByResource(data) {
-    return [...data].sort((a, b) =>
-        a.resource.localeCompare(b.resource, undefined, { sensitivity: 'base' })
-    );
-}
+     return [...data].sort((a, b) =>
+         a.resource.localeCompare(b.resource, undefined, { sensitivity: 'base' })
+     );
+ }
 
-function loadInitialData(data){
+ /**
+  * Loads and displays command data in the UI
+  * @param {array} data - Array of command objects
+  */
+ function loadInitialData(data) {
+     if (!data || data.length === 0) return;
 
-    document.querySelectorAll(".key").forEach(el => {
-        const isSelected = el.classList.contains("selected");
-        if(isSelected) el.click();
-        el.classList.remove("selected");
-    });
+     // Clear keyboard selection
+     document.querySelectorAll(".key").forEach(el => {
+         if (el.classList.contains("selected")) {
+             el.click();
+         }
+         el.classList.remove("selected");
+     });
 
-    const container = document.querySelector("#items");
-    if (!container) return;
+     const container = document.querySelector("#items");
+     if (!container) return;
 
-    const sorted = sortByResource(data);
+     const sorted = sortByResource(data);
+     container.innerHTML = sorted.map(d => renderKeybind(d)).join("");
+ }
 
-    container.innerHTML = sorted
-        .map(d => renderKeybind(d))
-        .join("");
-}
-
+/**
+ * Handles incoming messages from the FiveM resource
+ */
 window.addEventListener('message', (event) => {
+     if (event.data.action === 'tgm:keybinds:show') {
+         loadInitialData(event.data.kc);
+         const appElement = document.getElementById("app");
+         if (appElement) {
+             appElement.style.display = "block";
+         }
+     }
+ });
 
-    if(event.data.debug === true){
-        console.log("[Debug] Debug enabled!");
-        console.log(event);
-        DEBUG=true;
-    }
+ /**
+  * Close UI on Escape key
+  */
+ document.addEventListener("keydown", function (event) {
+     if (event.key === "Escape") {
+         const appElement = document.getElementById("app");
+         if (appElement) {
+             appElement.style.display = "none";
+         }
+         nuiCallback("closeUi", {});
+     }
+ });
 
-    if (event.data.action === 'tgm:keybinds:show') {
-        loadInitialData(event.data.kc);
+/**
+ * Toggles keyboard visibility and adjusts item container height
+ */
+function expandKeyboard() {
+     const keyboardContainer = document.getElementById("keyboard-container");
+     const itemsContainer = document.getElementById("items");
+     
+     if (!keyboardContainer || !itemsContainer) return;
 
-        document.getElementById("app").style.display = "block";
+     const isHidden = keyboardContainer.style.display === "none" || keyboardContainer.style.display === "";
+     
+     // Clear keyboard selection
+     document.querySelectorAll(".key").forEach(el => {
+         if (el.classList.contains("selected")) {
+             el.click();
+         }
+         el.classList.remove("selected");
+     });
 
-    }
-});
+     keyboardContainer.style.display = isHidden ? "flex" : "none";
+     itemsContainer.style.maxHeight = isHidden ? "42vh" : "70vh";
+ }
 
-document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") {
-        document.getElementById("app").style.display = "none";
-        nuiCallback("closeUi");
-    }
-});
-
-function expandKeyboard(){
-    let type=document.getElementById("keyboard-container").style.display;
-    let set="none";
-    let height="70vh";
-    if(type === "none" || type === ""){ set="flex"; height="42vh"; }
-
-    document.querySelectorAll(".key").forEach(el => {
-        const isSelected = el.classList.contains("selected");
-        if(isSelected) el.click();
-        el.classList.remove("selected");
-    });
-
-    document.getElementById("keyboard-container").style.display=set;
-    document.getElementById("items").style.maxHeight=height;
-}
-
+/**
+ * Handle keyboard key selection to filter items
+ */
 document.querySelectorAll(".key").forEach(key => {
-    key.addEventListener("click", () => {
+     key.addEventListener("click", () => {
+         const isSelected = key.classList.contains("selected");
+         const selectedKey = key.dataset.key;
 
-        const isSelected = key.classList.contains("selected");
-        const selectedKey = key.dataset.key;
+         // Clear all key selections
+         document.querySelectorAll(".key").forEach(el => {
+             el.classList.remove("selected");
+         });
 
-        // Clear all key selections
-        document.querySelectorAll(".key").forEach(el => {
-            el.classList.remove("selected");
-        });
+         if (!isSelected && selectedKey) {
+             // Select this key and filter items
+             key.classList.add("selected");
+             const allItems = document.querySelectorAll(".item");
+             const matchingItems = document.querySelectorAll(`.item[data-key='${selectedKey}']`);
 
-        if (!isSelected && selectedKey) {
-            // Select this key
-            key.classList.add("selected");
+             allItems.forEach(item => item.style.display = "none");
+             matchingItems.forEach(item => item.style.display = "block");
+         } else {
+             // Show all items
+             document.querySelectorAll(".item").forEach(item => {
+                 item.style.display = "block";
+             });
+         }
+     });
+ });
 
-            // Hide all items first
-            document.querySelectorAll(".item").forEach(item => {
-                item.style.display = "none";
-            });
+ /**
+  * Handle search input to filter commands
+  */
+ const searchInput = document.getElementById('search-form');
+ if (searchInput) {
+     searchInput.addEventListener('input', (event) => {
+         const query = searchInput.value.trim().toLowerCase();
+         const items = document.querySelectorAll('.item');
 
-            // Show only matching items
-            document
-                .querySelectorAll(`.item[data-key='${selectedKey}']`)
-                .forEach(item => {
-                    item.style.display = "block";
-                });
+         items.forEach(item => {
+             const resource = item.dataset.resource.toLowerCase();
+             const name = item.dataset.name.toLowerCase();
+             const matches = resource.includes(query) || name.includes(query);
 
-        } else {
-            // No key selected → show all items
-            document.querySelectorAll(".item").forEach(item => {
-                item.style.display = "block";
-            });
-        }
-
-        if (selectedKey) {
-            console.log(selectedKey);
-        }
-    });
-});
-
-const input  = document.getElementById('search-form');
-
-input.addEventListener('input', (event) => {
-    const query = input.value.trim().toLowerCase();
-    const items = document.querySelectorAll('.item');
-    items.forEach(item => {
-        const resource = item.dataset.resource.toLowerCase();
-        const name = item.dataset.name.toLowerCase();
-
-        const matches =
-            resource.includes(query) || name.includes(query);
-
-        item.style.display = query === '' || matches ? '' : 'none';
-    });
-});
+             item.style.display = query === '' || matches ? '' : 'none';
+         });
+     });
+ }
